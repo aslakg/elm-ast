@@ -24,8 +24,10 @@ module Ast.DoExpression exposing
 -}
 
 import Ast.BinOp exposing (..)
+import Ast.Common exposing (..)
 import Ast.Expression as E
 import Ast.Helpers exposing (..)
+import Ast.Pattern exposing (pattern)
 import Char
 import Combine exposing (..)
 import Combine.Char exposing (..)
@@ -64,9 +66,9 @@ type Expression
     | Record (List ( Name, Expression ))
     | RecordUpdate Name (List ( Name, Expression ))
     | If Expression Expression Expression
-    | Let (List ( Expression, Expression )) Expression
-    | Case Expression (List ( E.Expression, Expression ))
-    | Lambda (List Expression) Expression
+    | Let (List ( Pattern, Expression )) Expression
+    | Case Expression (List ( Pattern, Expression ))
+    | Lambda Pattern Expression
     | Application Expression Expression
     | BinOp Expression Expression Expression
     | Do (List (DoExpression Expression))
@@ -218,12 +220,13 @@ letExpression ops =
                 <*> (symbol "in" *> expression ops)
 
 
-letBinding : OpTable -> Parser s ( Expression, Expression )
+letBinding : OpTable -> Parser s ( Pattern, Expression )
 letBinding ops =
     lazy <|
         \() ->
             (,)
-                <$> (between_ whitespace <| expression ops)
+                -- <$> (between_ whitespace <| expression ops)
+                <$> pattern
                 <*> (symbol "=" *> expression ops)
 
 
@@ -244,7 +247,7 @@ caseExpression ops =
             lazy <|
                 \() ->
                     (,)
-                        <$> (exactIndentation indent *> E.expression ops)
+                        <$> (exactIndentation indent *> pattern)
                         <*> (symbol "->" *> expression ops)
     in
     lazy <|
@@ -305,7 +308,9 @@ lambda ops =
     lazy <|
         \() ->
             Lambda
-                <$> (symbol "\\" *> many (between_ spaces <| term ops))
+                <$> (symbol "\\" *> pattern
+                     -- many (between_ spaces <| term ops)
+                    )
                 <*> (symbol "->" *> expression ops)
 
 

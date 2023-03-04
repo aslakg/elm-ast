@@ -1,13 +1,7 @@
-module Ast.Statement
-    exposing
-        ( ExportSet(..)
-        , Type(..)
-        , Statement(..)
-        , statement
-        , statements
-        , infixStatements
-        , opTable
-        )
+module Ast.Statement exposing
+    ( ExportSet(..), Type(..), Statement(..)
+    , statement, statements, infixStatements, opTable
+    )
 
 {-| This module exposes parsers for Elm statements.
 
@@ -23,14 +17,15 @@ module Ast.Statement
 
 -}
 
+import Ast.BinOp exposing (Assoc(..), OpTable)
+import Ast.Common exposing (..)
+import Ast.Expression exposing (Expression, expression, term)
+import Ast.Helpers exposing (..)
 import Combine exposing (..)
 import Combine.Char exposing (..)
 import Combine.Num
 import Dict
 import String
-import Ast.BinOp exposing (Assoc(..), OpTable)
-import Ast.Expression exposing (Expression, expression, term)
-import Ast.Helpers exposing (..)
 
 
 {-| Representations for modules' exports.
@@ -163,7 +158,7 @@ typeRecordConstructor =
         \() ->
             braces <|
                 TypeRecordConstructor
-                    <$> (between_ spaces typeVariable)
+                    <$> between_ spaces typeVariable
                     <*> (symbol "|" *> typeRecordPairs)
 
 
@@ -276,7 +271,7 @@ typeDeclaration : Parser s Statement
 typeDeclaration =
     TypeDeclaration
         <$> (initialSymbol "type" *> type_)
-        <*> (whitespace *> symbol "=" *> (sepBy1 (symbol "|") (between_ whitespace typeConstructor)))
+        <*> (whitespace *> symbol "=" *> sepBy1 (symbol "|") (between_ whitespace typeConstructor))
 
 
 
@@ -312,9 +307,10 @@ functionTypeDeclaration =
 functionDeclaration : OpTable -> Parser s Statement
 functionDeclaration ops =
     FunctionDeclaration
-        <$> (choice [ loName, parens operator ])
-        <*> (many (between_ whitespace <| term ops))
+        <$> choice [ loName, parens operator ]
+        <*> many (between_ whitespace <| term ops)
         <*> (symbol "=" *> whitespace *> expression ops)
+
 
 
 -- Infix declarations
@@ -379,7 +375,7 @@ statement ops =
 -}
 statements : OpTable -> Parser s (List Statement)
 statements ops =
-    manyTill ((or whitespace spaces) *> statement ops <* (or whitespace spaces)) end
+    manyTill (or whitespace spaces *> statement ops <* or whitespace spaces) end
 
 
 {-| A scanner for infix statements. This is useful for performing a
@@ -398,9 +394,10 @@ infixStatements =
                 )
                 <* end
     in
-        statements
-            >>= \xs ->
-                    succeed <| List.filterMap identity xs
+    statements
+        >>= (\xs ->
+                succeed <| List.filterMap identity xs
+            )
 
 
 {-| A scanner that returns an updated OpTable based on the infix
@@ -417,6 +414,7 @@ opTable ops =
                 _ ->
                     Debug.crash "impossible"
     in
-        infixStatements
-            >>= \xs ->
-                    succeed <| List.foldr collect ops xs
+    infixStatements
+        >>= (\xs ->
+                succeed <| List.foldr collect ops xs
+            )

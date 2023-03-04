@@ -1,30 +1,23 @@
-module Ast
-    exposing
-        ( parseExpression
-        , parseDExpression
-        , parseStatement
-        , parseDStatement
-        , parseOpTable
-        , parseModule
-        , parse
-            , parse2
-        )
+module Ast exposing (parse2, parseBareExpression, parsePattern, parseExpression, parseStatement, parseDExpression, parseDStatement, parseOpTable, parseModule, parse)
 
 {-| This module exposes functions for parsing Elm code.
 
 
 # Parsers
 
-@docs parseExpression, parseStatement, parseDExpression, parseDStatement, parseOpTable, parseModule, parse
+@docs parse2, parseBareExpression, parsePattern, parseExpression, parseStatement, parseDExpression, parseDStatement, parseOpTable, parseModule, parse
 
 -}
 
-import Combine exposing (end, (<*))
 import Ast.BinOp exposing (OpTable, operators)
-import Ast.Expression exposing (Expression, expression)
-import Ast.Statement exposing (Statement, statement, statements, opTable)
+import Ast.Common exposing (Pattern)
 import Ast.DoExpression as AD exposing (dexpression)
 import Ast.DoStatement as DS
+import Ast.Expression exposing (Expression, expression)
+import Ast.Pattern as P
+import Ast.Statement exposing (Statement, opTable, statement, statements)
+import Combine exposing ((<*), end)
+
 
 {-| Parse an Elm expression.
 -}
@@ -32,10 +25,20 @@ parseExpression : OpTable -> String -> Result (Combine.ParseErr ()) (Combine.Par
 parseExpression ops =
     Combine.parse (expression ops <* end)
 
-{-| Parse an Elm expression extended with do syntax -}        
+
+{-| Parse an Elm expression extended with do syntax
+-}
 parseDExpression : OpTable -> String -> Result (Combine.ParseErr ()) (Combine.ParseOk () AD.Expression)
 parseDExpression ops =
     Combine.parse (dexpression ops <* end)
+
+
+{-| Parse an Elm pattern.
+-}
+parsePattern : String -> Result (Combine.ParseErr ()) (Combine.ParseOk () Pattern)
+parsePattern =
+    Combine.parse (P.pattern <* end)
+
 
 {-| Parse an Elm statement.
 -}
@@ -43,10 +46,13 @@ parseStatement : OpTable -> String -> Result (Combine.ParseErr ()) (Combine.Pars
 parseStatement ops =
     Combine.parse (statement ops <* end)
 
-{-| Parse an Elm statement, extended with do syntax -}        
+
+{-| Parse an Elm statement, extended with do syntax
+-}
 parseDStatement : OpTable -> String -> Result (Combine.ParseErr ()) (Combine.ParseOk () (DS.Statement AD.Expression))
 parseDStatement ops =
     Combine.parse (DS.statement ops AD.dexpression AD.term <* end)
+
 
 {-| Parse an OpTable from a module.
 -}
@@ -71,7 +77,7 @@ parse input =
             parseModule ops input
 
         Err e ->
-            (Err e)
+            Err e
 
 
 {-| Parse an Elm module.
@@ -90,5 +96,21 @@ parse2 input =
             parseModule2 ops input
 
         Err e ->
-            (Err e)
-                
+            Err e
+
+
+{-| Parse an Elm module, scanning for infix declarations first.
+-}
+parseBareExpression : String -> Result (Combine.ParseErr ()) Expression
+parseBareExpression input =
+    case parseOpTable operators input of
+        Ok ( state, stream, ops ) ->
+            case parseExpression ops input of
+                Ok ( _, _, x ) ->
+                    Ok x
+
+                Err e ->
+                    Err e
+
+        Err e ->
+            Err e

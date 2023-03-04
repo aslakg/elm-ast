@@ -1,24 +1,38 @@
-module Ast.Helpers exposing (..)
+module Ast.Helpers exposing
+    ( between_
+    , commaSeparated
+    , commaSeparated_
+    , countIndent
+    , cycle
+    , emptyTuple
+    , exactIndentation
+    , funName
+    , functionName
+    , initialSymbol
+    , listParser
+    , loName
+    , logContent
+    , moduleName
+    , name
+    , operator
+    , optionalParens
+    , reserved
+    , reservedOperators
+    , spaces
+    , spacesOrIndentedNewline
+    , spaces_
+    , symbol
+    , symbol_
+    , tupleParser
+    , upName
+    , varName
+    , wildcard
+    )
 
+import Ast.Common exposing (..)
 import Combine exposing (..)
 import Combine.Char exposing (..)
 import String
-
-
-type alias Name =
-    String
-
-
-type alias QualifiedType =
-    List Name
-
-
-type alias ModuleName =
-    List String
-
-
-type alias Alias =
-    String
 
 
 reserved : List Name
@@ -46,6 +60,11 @@ reservedOperators =
     [ "=", ".", "..", "->", "--", "|", ":" ]
 
 
+optionalParens : Parser s a -> Parser s a
+optionalParens p =
+    lazy <| \() -> p <|> (parens <| optionalParens p)
+
+
 between_ : Parser s a -> Parser s res -> Parser s res
 between_ p =
     between p p
@@ -59,6 +78,7 @@ spaces =
 spaces_ : Parser s String
 spaces_ =
     regex "[ \\t]+"
+
 
 notWhitespace_ : Parser s String
 notWhitespace_ =
@@ -97,22 +117,34 @@ commaSeparated_ p =
 
 name : Parser s Char -> Parser s String
 name p =
-    String.cons <$> p <*> regex "[a-zA-Z0-9-_]*"
+    String.cons <$> p <*> regex "[a-zA-Z0-9_]*"
 
 
 loName : Parser s String
 loName =
-    let
-        loName_ =
-            name lower
-                >>= (\n ->
-                        if List.member n reserved then
-                            fail <| "name '" ++ n ++ "' is reserved"
-                        else
-                            succeed n
-                    )
-    in
-        string "_" <|> loName_
+    wildcard <|> varName
+
+
+funName : Parser s String
+funName =
+    choice [ varName, parens operator ]
+
+
+wildcard : Parser s String
+wildcard =
+    string "_"
+
+
+varName : Parser s String
+varName =
+    name lower
+        >>= (\n ->
+                if List.member n reserved then
+                    fail <| "name '" ++ n ++ "' is reserved"
+
+                else
+                    succeed n
+            )
 
 
 upName : Parser s String
@@ -133,6 +165,7 @@ operator =
                 >>= (\n ->
                         if List.member n reservedOperators then
                             fail <| "operator '" ++ n ++ "' is reserved"
+
                         else
                             succeed n
                     )
@@ -151,3 +184,58 @@ moduleName =
 logContent : String -> Parser s x -> Parser s x
 logContent label xsParser =
     xsParser >>= (Debug.log label >> succeed)
+
+
+listParser : Parser s a -> Parser s (List a)
+listParser el =
+    brackets (commaSeparated el <|> whitespace *> succeed [])
+
+
+tupleParser : Parser s a -> Parser s (List a)
+tupleParser el =
+    parens (commaSeparated_ <| el)
+        >>= (\a ->
+                case a of
+                    [ _ ] ->
+                        fail "No single tuples"
+
+                    anyOther ->
+                        succeed anyOther
+            )
+
+
+spacesOrIndentedNewline : Int -> Parser s ()
+spacesOrIndentedNewline indentation =
+    lazy <|
+        \() ->
+            or (spaces_ *> succeed ())
+                (countIndent
+                    >>= (\column ->
+                            if column < indentation then
+                                fail "Arguments have to be at least the same indentation as the function"
+
+                            else
+                                succeed ()
+                        )
+                )
+
+
+countIndent : Parser s Int
+countIndent =
+    newline *> spaces >>= (String.filter (\char -> char == ' ') >> String.length >> succeed)
+
+
+{-| Cycle combinator executes the first parser passing the next parser as an argument
+thanks to that the parser can utilize self recursion in the most lazy way possible
+
+cycle [parserA, parserB, parserC] is equal to
+parserA parserB
+parserB parserC
+parserC parserA
+
+-}
+cycle : List (Parser s a -> Parser s a) -> Parser s a
+cycle parsers =
+    lazy <|
+        \() ->
+            List.foldr identity (cycle parsers) parsers

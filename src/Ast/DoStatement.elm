@@ -1,13 +1,7 @@
-module Ast.DoStatement
-    exposing
-        ( ExportSet(..)
-        , Type(..)
-        , Statement(..)
-        , statement
-        , statements
-        , infixStatements
-        , opTable
-        )
+module Ast.DoStatement exposing
+    ( ExportSet(..), Type(..), Statement(..)
+    , statement, statements, infixStatements, opTable
+    )
 
 {-| This module exposes parsers for Elm statements.
 
@@ -23,14 +17,16 @@ module Ast.DoStatement
 
 -}
 
+--import Ast.Expression exposing (Expression, expression, term)
+
+import Ast.BinOp exposing (Assoc(..), OpTable)
+import Ast.Common exposing (..)
+import Ast.Helpers exposing (..)
 import Combine exposing (..)
 import Combine.Char exposing (..)
 import Combine.Num
 import Dict
 import String
-import Ast.BinOp exposing (Assoc(..), OpTable)
---import Ast.Expression exposing (Expression, expression, term)
-import Ast.Helpers exposing (..)
 
 
 {-| Representations for modules' exports.
@@ -163,7 +159,7 @@ typeRecordConstructor =
         \() ->
             braces <|
                 TypeRecordConstructor
-                    <$> (between_ spaces typeVariable)
+                    <$> between_ spaces typeVariable
                     <*> (symbol "|" *> typeRecordPairs)
 
 
@@ -276,7 +272,7 @@ typeDeclaration : Parser s (Statement e)
 typeDeclaration =
     TypeDeclaration
         <$> (initialSymbol "type" *> type_)
-        <*> (whitespace *> symbol "=" *> (sepBy1 (symbol "|") (between_ whitespace typeConstructor)))
+        <*> (whitespace *> symbol "=" *> sepBy1 (symbol "|") (between_ whitespace typeConstructor))
 
 
 
@@ -291,7 +287,7 @@ portTypeDeclaration =
         <*> (symbol ":" *> typeAnnotation)
 
 
-portDeclaration : OpTable -> (OpTable -> Parser s e) ->  Parser s (Statement e)
+portDeclaration : OpTable -> (OpTable -> Parser s e) -> Parser s (Statement e)
 portDeclaration ops expression =
     PortDeclaration
         <$> (initialSymbol "port" *> loName)
@@ -312,9 +308,10 @@ functionTypeDeclaration =
 functionDeclaration : OpTable -> (OpTable -> Parser s e) -> (OpTable -> Parser s e) -> Parser s (Statement e)
 functionDeclaration ops expression term =
     FunctionDeclaration
-        <$> (choice [ loName, parens operator ])
-        <*> (many (between_ whitespace <| term ops))
+        <$> choice [ loName, parens operator ]
+        <*> many (between_ whitespace <| term ops)
         <*> (symbol "=" *> whitespace *> expression ops)
+
 
 
 -- Infix declarations
@@ -355,7 +352,7 @@ comment =
 
 {-| A parser for stand-alone Elm statements.
 -}
-statement : OpTable -> (OpTable -> Parser s e) -> (OpTable -> Parser s e) ->  Parser s (Statement e)
+statement : OpTable -> (OpTable -> Parser s e) -> (OpTable -> Parser s e) -> Parser s (Statement e)
 statement ops expParser termParser =
     lazy <|
         \() ->
@@ -369,7 +366,7 @@ statement ops expParser termParser =
                 , portTypeDeclaration
                 , portDeclaration ops expParser
                 , functionTypeDeclaration
-                , functionDeclaration ops expParser termParser 
+                , functionDeclaration ops expParser termParser
                 , infixDeclaration
                 , comment
                 ]
@@ -379,7 +376,7 @@ statement ops expParser termParser =
 -}
 statements : OpTable -> (OpTable -> Parser s e) -> (OpTable -> Parser s e) -> Parser s (List (Statement e))
 statements ops expParser termParser =
-    manyTill ((or whitespace spaces) *> statement ops expParser termParser <* (or whitespace spaces)) end
+    manyTill (or whitespace spaces *> statement ops expParser termParser <* or whitespace spaces) end
 
 
 {-| A scanner for infix statements. This is useful for performing a
@@ -398,9 +395,10 @@ infixStatements =
                 )
                 <* end
     in
-        statements
-            >>= \xs ->
-                    succeed <| List.filterMap identity xs
+    statements
+        >>= (\xs ->
+                succeed <| List.filterMap identity xs
+            )
 
 
 {-| A scanner that returns an updated OpTable based on the infix
@@ -417,6 +415,7 @@ opTable ops =
                 _ ->
                     Debug.crash "impossible"
     in
-        infixStatements
-            >>= \xs ->
-                    succeed <| List.foldr collect ops xs
+    infixStatements
+        >>= (\xs ->
+                succeed <| List.foldr collect ops xs
+            )

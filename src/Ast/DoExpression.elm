@@ -226,7 +226,7 @@ letBinding ops =
         \() ->
             (,)
                 -- <$> (between_ whitespace <| expression ops)
-                <$> pattern
+                <$> (between_ whitespace <| pattern)
                 <*> (symbol "=" *> expression ops)
 
 

@@ -1,11 +1,11 @@
-module Ast exposing (parse2, parseBareExpression, parsePattern, parseExpression, parseStatement, parseDExpression, parseDStatement, parseOpTable, parseModule, parse)
+module Ast exposing (parse2, parseBareDoExpression, parseBareExpression, parsePattern, parseExpression, parseStatement, parseDExpression, parseDStatement, parseOpTable, parseModule, parse)
 
 {-| This module exposes functions for parsing Elm code.
 
 
 # Parsers
 
-@docs parse2, parseBareExpression, parsePattern, parseExpression, parseStatement, parseDExpression, parseDStatement, parseOpTable, parseModule, parse
+@docs parse2, parseBareDoExpression, parseBareExpression, parsePattern, parseExpression, parseStatement, parseDExpression, parseDStatement, parseOpTable, parseModule, parse
 
 -}
 
@@ -99,13 +99,30 @@ parse2 input =
             Err e
 
 
-{-| Parse an Elm module, scanning for infix declarations first.
+{-| Parse a bare expression
 -}
 parseBareExpression : String -> Result (Combine.ParseErr ()) Expression
 parseBareExpression input =
     case parseOpTable operators input of
         Ok ( state, stream, ops ) ->
             case parseExpression ops input of
+                Ok ( _, _, x ) ->
+                    Ok x
+
+                Err e ->
+                    Err e
+
+        Err e ->
+            Err e
+
+
+{-| Parse a bare expression, with patterns and do notation
+-}
+parseBareDoExpression : String -> Result (Combine.ParseErr ()) AD.Expression
+parseBareDoExpression input =
+    case parseOpTable operators input of
+        Ok ( state, stream, ops ) ->
+            case parseDExpression ops input of
                 Ok ( _, _, x ) ->
                     Ok x
 

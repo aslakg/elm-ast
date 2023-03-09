@@ -10,13 +10,17 @@ module Ast exposing (parse2, parseBareDoExpression, parseBareExpression, parsePa
 -}
 
 import Ast.BinOp exposing (OpTable, operators)
-import Ast.Common exposing (Pattern)
+import Ast.Common exposing (Name, Pattern)
 import Ast.DoExpression as AD exposing (dexpression)
 import Ast.DoStatement as DS
 import Ast.Expression exposing (Expression, expression)
 import Ast.Pattern as P
 import Ast.Statement exposing (Statement, opTable, statement, statements)
 import Combine exposing ((<*), end)
+
+
+type alias ExpressionD =
+    AD.ExpressionH Name Name
 
 
 {-| Parse an Elm expression.
@@ -28,7 +32,7 @@ parseExpression ops =
 
 {-| Parse an Elm expression extended with do syntax
 -}
-parseDExpression : OpTable -> String -> Result (Combine.ParseErr ()) (Combine.ParseOk () AD.Expression)
+parseDExpression : OpTable -> String -> Result (Combine.ParseErr ()) (Combine.ParseOk () ExpressionD)
 parseDExpression ops =
     Combine.parse (dexpression ops <* end)
 
@@ -49,7 +53,7 @@ parseStatement ops =
 
 {-| Parse an Elm statement, extended with do syntax
 -}
-parseDStatement : OpTable -> String -> Result (Combine.ParseErr ()) (Combine.ParseOk () (DS.Statement AD.Expression))
+parseDStatement : OpTable -> String -> Result (Combine.ParseErr ()) (Combine.ParseOk () (DS.Statement ExpressionD))
 parseDStatement ops =
     Combine.parse (DS.statement ops AD.dexpression AD.term <* end)
 
@@ -82,14 +86,14 @@ parse input =
 
 {-| Parse an Elm module.
 -}
-parseModule2 : OpTable -> String -> Result (Combine.ParseErr ()) (Combine.ParseOk () (List (DS.Statement AD.Expression)))
+parseModule2 : OpTable -> String -> Result (Combine.ParseErr ()) (Combine.ParseOk () (List (DS.Statement ExpressionD)))
 parseModule2 ops =
     Combine.parse (DS.statements ops AD.dexpression AD.term)
 
 
 {-| Parse an Elm module, scanning for infix declarations first.
 -}
-parse2 : String -> Result (Combine.ParseErr ()) (Combine.ParseOk () (List (DS.Statement AD.Expression)))
+parse2 : String -> Result (Combine.ParseErr ()) (Combine.ParseOk () (List (DS.Statement ExpressionD)))
 parse2 input =
     case parseOpTable operators input of
         Ok ( state, stream, ops ) ->
@@ -118,7 +122,7 @@ parseBareExpression input =
 
 {-| Parse a bare expression, with patterns and do notation
 -}
-parseBareDoExpression : String -> Result (Combine.ParseErr ()) AD.Expression
+parseBareDoExpression : String -> Result (Combine.ParseErr ()) ExpressionD
 parseBareDoExpression input =
     case parseOpTable operators input of
         Ok ( state, stream, ops ) ->

@@ -1,7 +1,6 @@
 module Ast.DoExpression exposing
-    ( Expression(..)
-    , term
-    , DoExpression(..), dexpression, doArrow, doExpression, expressionD
+    ( term
+    , DoExpression(..), ExpressionD, ExpressionH(..), dexpression, doArrow, doExpression, expressionD
     )
 
 {-| This module exposes parsers for Elm expressions.
@@ -53,28 +52,40 @@ type DoExpression e
 
 {-| Representations for Elm's expressions.
 -}
-type Expression
+type ExpressionH v b
     = Character Char
     | String String
     | Integer Int
     | Float Float
-    | Variable (List Name)
-    | List (List Expression)
-    | Tuple (List Expression)
-    | Access Expression (List Name)
+    | Variable v
+    | List (List (ExpressionH v b))
+    | Tuple (List (ExpressionH v b))
+    | Access (ExpressionH v b) (List Name)
     | AccessFunction Name
-    | Record (List ( Name, Expression ))
-    | RecordUpdate Name (List ( Name, Expression ))
-    | If Expression Expression Expression
-    | Let (List ( Pattern, Expression )) Expression
-    | Case Expression (List ( Pattern, Expression ))
-    | Lambda Pattern Expression
-    | Application Expression Expression
-    | BinOp Expression Expression Expression
-    | Do (List (DoExpression Expression))
+    | Record (List ( Name, ExpressionH v b ))
+    | RecordUpdate Name (List ( Name, ExpressionH v b ))
+    | If (ExpressionH v b) (ExpressionH v b) (ExpressionH v b)
+    | Let (List ( PatternH b, ExpressionH v b )) (ExpressionH v b)
+    | Case (ExpressionH v b) (List ( PatternH b, ExpressionH v b ))
+    | Lambda (PatternH b) (ExpressionH v b)
+    | Application (ExpressionH v b) (ExpressionH v b)
+    | BinOp (ExpressionH v b) (ExpressionH v b) (ExpressionH v b)
+    | Do (List (DoExpression (ExpressionH v b)))
 
 
-character : Parser s Expression
+type alias Expr =
+    ExpressionH Name Name
+
+
+type alias ExpressionD =
+    Expr
+
+
+mkVar =
+    Variable
+
+
+character : Parser s Expr
 character =
     Character
         <$> between_ (Combine.string "'")
@@ -115,7 +126,7 @@ character =
                 )
 
 
-string : Parser s Expression
+string : Parser s Expr
 string =
     let
         singleString =
@@ -129,46 +140,67 @@ string =
     multiString <|> singleString
 
 
-integer : Parser s Expression
+integer : Parser s Expr
 integer =
     Integer <$> Combine.Num.int
 
 
-float : Parser s Expression
+float : Parser s Expr
 float =
     Float <$> Combine.Num.float
 
 
-access : Parser s Expression
+access : Parser s Expr
 access =
     Access <$> variable <*> many1 (Combine.string "." *> loName)
 
 
-accessFunction : Parser s Expression
+accessFunction : Parser s Expr
 accessFunction =
     AccessFunction <$> (Combine.string "." *> loName)
 
 
-variable : Parser s Expression
+
+-- variableL =
+--     Variable
+--         <$> choice
+--                 [ singleton <$> loName
+--                 , sepBy1 (Combine.string ".") upName
+--                 , singleton <$> parens operator
+--                 , singleton <$> parens (Combine.regex ",+")
+--                 , singleton <$> emptyTuple
+--                 ]
+
+
+{-| I don't want a list of names here - if I need a list later I can split the name by "."
+-}
+
+
+
+-- variable : Parser s Expr
+
+
 variable =
     Variable
         <$> choice
-                [ singleton <$> loName
-                , sepBy1 (Combine.string ".") upName
-                , singleton <$> parens operator
-                , singleton <$> parens (Combine.regex ",+")
-                , singleton <$> emptyTuple
+                [ loName
+
+                -- , sepBy1 (Combine.string ".") upName
+                , upName
+                , parens operator
+                , parens (Combine.regex ",+")
+                , emptyTuple
                 ]
 
 
-list : OpTable -> Parser s Expression
+list : OpTable -> Parser s Expr
 list ops =
     lazy <|
         \() ->
             List <$> brackets (commaSeparated_ <| expression ops)
 
 
-tuple : OpTable -> Parser s Expression
+tuple : OpTable -> Parser s Expr
 tuple ops =
     lazy <|
         \() ->
@@ -185,21 +217,27 @@ tuple ops =
                     )
 
 
-record : OpTable -> Parser s Expression
+record : OpTable -> Parser s Expr
 record ops =
     lazy <|
         \() ->
             Record <$> braces (commaSeparated ((,) <$> loName <*> (symbol "=" *> expression ops)))
 
 
-simplifiedRecord : Parser s Expression
-simplifiedRecord =
+simplifiedRecordL =
     lazy <|
         \() ->
             Record <$> braces (commaSeparated ((\a -> ( a, Variable [ a ] )) <$> loName))
 
 
-recordUpdate : OpTable -> Parser s Expression
+simplifiedRecord : Parser s Expr
+simplifiedRecord =
+    lazy <|
+        \() ->
+            Record <$> braces (commaSeparated ((\a -> ( a, Variable a )) <$> loName))
+
+
+recordUpdate : OpTable -> Parser s Expr
 recordUpdate ops =
     lazy <|
         \() ->
@@ -211,7 +249,7 @@ recordUpdate ops =
                     )
 
 
-letExpression : OpTable -> Parser s Expression
+letExpression : OpTable -> Parser s Expr
 letExpression ops =
     lazy <|
         \() ->
@@ -220,7 +258,7 @@ letExpression ops =
                 <*> (symbol "in" *> expression ops)
 
 
-letBinding : OpTable -> Parser s ( Pattern, Expression )
+letBinding : OpTable -> Parser s ( Pattern, Expr )
 letBinding ops =
     lazy <|
         \() ->
@@ -230,7 +268,7 @@ letBinding ops =
                 <*> (symbol "=" *> expression ops)
 
 
-ifExpression : OpTable -> Parser s Expression
+ifExpression : OpTable -> Parser s Expr
 ifExpression ops =
     lazy <|
         \() ->
@@ -240,7 +278,7 @@ ifExpression ops =
                 <*> (symbol "else" *> expression ops)
 
 
-caseExpression : OpTable -> Parser s Expression
+caseExpression : OpTable -> Parser s Expr
 caseExpression ops =
     let
         binding indent =
@@ -265,7 +303,7 @@ caseExpression ops =
 
 {-| TODO Implement
 -}
-expressionD : OpTable -> Parser s Expression
+expressionD : OpTable -> Parser s Expr
 expressionD ops =
     let
         binding indent =
@@ -289,7 +327,7 @@ doArrow ops =
     (DoArrow <$> loName) <*> (symbol "<-" *> expression ops)
 
 
-doExpression : OpTable -> Int -> Parser s (DoExpression Expression)
+doExpression : OpTable -> Int -> Parser s (DoExpression Expr)
 doExpression ops indent =
     exactIndentation indent
         *> choice
@@ -303,7 +341,7 @@ countIndent =
     newline *> spaces >>= (String.filter (\char -> char == ' ') >> String.length >> succeed)
 
 
-lambda : OpTable -> Parser s Expression
+lambda : OpTable -> Parser s Expr
 lambda ops =
     lazy <|
         \() ->
@@ -314,7 +352,7 @@ lambda ops =
                 <*> (symbol "->" *> expression ops)
 
 
-application : OpTable -> Parser s Expression
+application : OpTable -> Parser s Expr
 application ops =
     lazy <|
         \() ->
@@ -349,7 +387,7 @@ successOrEmptyList p =
     lazy <| \() -> choice [ p, succeed [] ]
 
 
-binary : OpTable -> Parser s Expression
+binary : OpTable -> Parser s Expr
 binary ops =
     lazy <|
         \() ->
@@ -376,7 +414,7 @@ binary ops =
 
 {-| A parser for term
 -}
-term : OpTable -> Parser s Expression
+term : OpTable -> Parser s Expr
 term ops =
     lazy <|
         \() ->
@@ -399,7 +437,7 @@ term ops =
 
 {-| A parser for Elm expressions.
 -}
-expression : OpTable -> Parser s Expression
+expression : OpTable -> Parser s Expr
 expression ops =
     lazy <|
         \() ->
@@ -433,12 +471,12 @@ level ops n =
     Tuple.second <| op ops n
 
 
-hasLevel : OpTable -> Int -> ( String, Expression ) -> Bool
+hasLevel : OpTable -> Int -> ( String, Expr ) -> Bool
 hasLevel ops l ( n, _ ) =
     level ops n == l
 
 
-split : OpTable -> Int -> Expression -> List ( String, Expression ) -> Parser s Expression
+split : OpTable -> Int -> Expr -> List ( String, Expr ) -> Parser s Expr
 split ops l e eops =
     case eops of
         [] ->
@@ -471,7 +509,7 @@ split ops l e eops =
                     )
 
 
-splitLevel : OpTable -> Int -> Expression -> List ( String, Expression ) -> List (Parser s Expression)
+splitLevel : OpTable -> Int -> Expr -> List ( String, Expr ) -> List (Parser s Expr)
 splitLevel ops l e eops =
     case break (hasLevel ops l) eops of
         ( lops, ( _, e_ ) :: rops ) ->
@@ -481,20 +519,20 @@ splitLevel ops l e eops =
             [ split ops (l + 1) e lops ]
 
 
-joinL : List Expression -> List String -> Parser s Expression
+joinL : List Expr -> List String -> Parser s Expr
 joinL es ops =
     case ( es, ops ) of
         ( [ e ], [] ) ->
             succeed e
 
         ( a :: b :: remE, op :: remO ) ->
-            joinL (BinOp (Variable [ op ]) a b :: remE) remO
+            joinL (BinOp (mkVar op) a b :: remE) remO
 
         _ ->
             fail ""
 
 
-joinR : List Expression -> List String -> Parser s Expression
+joinR : List Expr -> List String -> Parser s Expr
 joinR es ops =
     case ( es, ops ) of
         ( [ e ], [] ) ->
@@ -504,14 +542,14 @@ joinR es ops =
             joinR (b :: remE) remO
                 |> andThen
                     (\e ->
-                        succeed (BinOp (Variable [ op ]) a e)
+                        succeed (BinOp (mkVar op) a e)
                     )
 
         _ ->
             fail ""
 
 
-findAssoc : OpTable -> Int -> List ( String, Expression ) -> Parser s Assoc
+findAssoc : OpTable -> Int -> List ( String, Expr ) -> Parser s Assoc
 findAssoc ops l eops =
     let
         lops =

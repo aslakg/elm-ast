@@ -1,6 +1,7 @@
 module Ast.Common exposing
-    ( Alias, Column, Line, Located, MName, ModuleName, Name, QualifiedType, WithMeta, Pattern(..), MPattern
+    ( Alias, Column, Line, Located, MName, ModuleName, Name, QualifiedType, WithMeta, Pattern, MPattern
     , addMeta, dropMeta, withMeta
+    , PatternH(..)
     )
 
 {-| This module exposes types and helpers common for statement and expression.
@@ -88,17 +89,21 @@ type alias Alias =
 
 {-| Pattern to match
 -}
-type Pattern
+type PatternH v
     = PWildcard -- PAnything
-    | PVariable Name -- PVar
+    | PVariable v -- PVar
     | PConstructor Name -- I think PVar with capital name
     | PLiteral Literal -- PLiteral
-    | PTuple (List Pattern) -- Doesn't exist -- probably PData ?
-    | PCons Pattern Pattern -- Doesn't exist - probably PData with ::?
-    | PList (List Pattern) -- Doesn't exist - probably PData with :: ?
+    | PTuple (List (PatternH v)) -- Doesn't exist -- probably PData ?
+    | PCons (PatternH v) (PatternH v) -- Doesn't exist - probably PData with ::?
+    | PList (List (PatternH v)) -- Doesn't exist - probably PData with :: ?
     | PRecord (List Name) -- PRecord
-    | PAs Pattern Name -- PAlias
-    | PApplication Pattern Pattern -- Doesn't exist - probably PData as well?
+    | PAs (PatternH v) Name -- PAlias
+    | PApplication (PatternH v) (PatternH v) -- Doesn't exist - probably PData as well?
+
+
+type alias Pattern =
+    PatternH Name
 
 
 

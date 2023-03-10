@@ -24,14 +24,12 @@ module Ast.DoExpression exposing
 
 import Ast.BinOp exposing (..)
 import Ast.Common exposing (..)
-import Ast.Expression as E
 import Ast.Helpers exposing (..)
 import Ast.Pattern exposing (pattern)
 import Char
 import Combine exposing (..)
 import Combine.Char exposing (..)
 import Combine.Num
-import Debug exposing (log)
 import Dict exposing (Dict)
 import Hex
 import List exposing (singleton)

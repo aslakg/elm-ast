@@ -1,11 +1,11 @@
-module Ast exposing (parse2, parseBareDoExpression, parseBareExpression, parsePattern, parseExpression, parseStatement, parseDExpression, parseDStatement, parseOpTable, parseModule, parse)
+module Ast exposing (parse2, parseBarePattern, run, parseBareDoExpression, parseBareExpression, parsePattern, parseExpression, parseStatement, parseDExpression, parseDStatement, parseOpTable, parseModule, parse)
 
 {-| This module exposes functions for parsing Elm code.
 
 
 # Parsers
 
-@docs parse2, parseBareDoExpression, parseBareExpression, parsePattern, parseExpression, parseStatement, parseDExpression, parseDStatement, parseOpTable, parseModule, parse
+@docs parse2, parseBarePattern, run, parseBareDoExpression, parseBareExpression, parsePattern, parseExpression, parseStatement, parseDExpression, parseDStatement, parseOpTable, parseModule, parse
 
 -}
 
@@ -21,6 +21,18 @@ import Combine exposing ((<*), end)
 
 type alias ExpressionD =
     AD.ExpressionH Name Name
+
+
+{-| Simplify the results of the parser
+-}
+run : Result (Combine.ParseErr ()) (Combine.ParseOk () a) -> Result String a
+run x =
+    case x of
+        Ok ( _, _, r ) ->
+            Ok r
+
+        Err e ->
+            Err (toString e)
 
 
 {-| Parse an Elm expression.
@@ -122,7 +134,7 @@ parseBareExpression input =
 
 {-| Parse a bare expression, with patterns and do notation
 -}
-parseBareDoExpression : String -> Result (Combine.ParseErr ()) ExpressionD
+parseBareDoExpression : String -> Result String ExpressionD
 parseBareDoExpression input =
     case parseOpTable operators input of
         Ok ( state, stream, ops ) ->
@@ -131,7 +143,14 @@ parseBareDoExpression input =
                     Ok x
 
                 Err e ->
-                    Err e
+                    Err (toString e)
 
         Err e ->
-            Err e
+            Err (toString e)
+
+
+{-| Parse a pattern by itself
+-}
+parseBarePattern : String -> Result String Pattern
+parseBarePattern =
+    parsePattern >> run

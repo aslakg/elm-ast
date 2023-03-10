@@ -103,7 +103,7 @@ constructorParser =
     PConstructor <$> upName
 
 
-applicationToList : Pattern -> List Pattern
+applicationToList : PatternH a -> List (PatternH a)
 applicationToList application =
     case application of
         PApplication left right ->
@@ -113,7 +113,7 @@ applicationToList application =
             [ other ]
 
 
-applicationFromList : Pattern -> List Pattern -> Pattern
+applicationFromList : PatternH a -> List (PatternH a) -> PatternH a
 applicationFromList acc l =
     case l of
         right :: rest ->

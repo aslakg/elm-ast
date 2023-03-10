@@ -98,7 +98,7 @@ type PatternH v
     | PCons (PatternH v) (PatternH v) -- Doesn't exist - probably PData with ::?
     | PList (List (PatternH v)) -- Doesn't exist - probably PData with :: ?
     | PRecord (List Name) -- PRecord
-    | PAs (PatternH v) Name -- PAlias
+    | PAs (PatternH v) v -- PAlias
     | PApplication (PatternH v) (PatternH v) -- Doesn't exist - probably PData as well?
 
 
